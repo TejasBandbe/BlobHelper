@@ -192,9 +192,9 @@ namespace BlobFunctions.Helpers
                 BlobClient blobClient = new BlobClient(fileUri, new DefaultAzureCredential());
                 //if soft delete is enabled in storage account blobs, then this will soft delete
                 //else permanently delete
-                await blobClient.DeleteIfExistsAsync(snapshotsOption: DeleteSnapshotsOption.IncludeSnapshots);
+                bool isDeleted = await blobClient.DeleteIfExistsAsync(snapshotsOption: DeleteSnapshotsOption.IncludeSnapshots);
 
-                return true;
+                return isDeleted;
             }
             catch (Exception ex)
             {
@@ -210,8 +210,8 @@ namespace BlobFunctions.Helpers
                 BlobClient blobClient = containerClient.GetBlobClient(filePathInContainer);
                 //if soft delete is enabled in storage account blobs, then this will soft delete
                 //else permanently delete
-                await blobClient.DeleteIfExistsAsync(snapshotsOption: DeleteSnapshotsOption.IncludeSnapshots);
-                return true;
+                bool isDeleted = await blobClient.DeleteIfExistsAsync(snapshotsOption: DeleteSnapshotsOption.IncludeSnapshots);
+                return isDeleted;
             }
             catch (Exception ex)
             {
@@ -237,8 +237,63 @@ namespace BlobFunctions.Helpers
                     BlobClient blobClient = containerClient.GetBlobClient(blobItem.Name);
                     //if soft delete is enabled in storage account blobs, then this will soft delete
                     //else permanently delete
-                    blobClient.DeleteIfExistsAsync(snapshotsOption: DeleteSnapshotsOption.IncludeSnapshots);
+                    bool isDeleted = await blobClient.DeleteIfExistsAsync(snapshotsOption: DeleteSnapshotsOption.IncludeSnapshots);
                    
+                    return isDeleted;
+                }
+                return false;
+            }
+            catch (Exception ex)
+            {
+                throw;
+            }
+        }
+        #endregion
+
+        #region CheckFile
+        public async Task<bool> CheckFile(string fullFileUri)
+        {
+            try
+            {
+                Uri fileUri = new Uri(fullFileUri);
+                BlobClient blobClient = new BlobClient(fileUri, new DefaultAzureCredential());
+                bool exists = await blobClient.ExistsAsync();
+                return exists;
+            }
+            catch (Exception ex)
+            {
+                throw;
+            }
+        }
+
+        public async Task<bool> CheckFile(string containerName, string filePathInContainer)
+        {
+            try
+            {
+                BlobContainerClient containerClient = new BlobContainerClient(KeyVaultHelper.BlobConnectionString, containerName);
+                BlobClient blobClient = containerClient.GetBlobClient(filePathInContainer);
+                bool exists = await blobClient.ExistsAsync();
+                return exists;
+            }
+            catch (Exception ex)
+            {
+                throw;
+            }
+        }
+
+        public async Task<bool> CheckFile(string containerName, string foldersInsideContainerAboveDateFolder, string referenceIdToSearch, string fileName)
+        {
+            try
+            {
+                BlobContainerClient containerClient = new BlobContainerClient(KeyVaultHelper.BlobConnectionString, containerName);
+
+                var blobs = containerClient.GetBlobs(BlobTraits.None, BlobStates.None, prefix: foldersInsideContainerAboveDateFolder);
+
+                var blobItem = blobs.FirstOrDefault(b =>
+                    b.Name.Contains($"/{referenceIdToSearch}/") && b.Name.EndsWith(fileName));
+
+                if (blobItem != null)
+                {
                     return true;
                 }
                 return false;

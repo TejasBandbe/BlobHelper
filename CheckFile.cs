@@ -7,18 +7,18 @@ using Microsoft.Extensions.Logging;
 
 namespace BlobFunctions
 {
-    public class ReadFileToBase64
+    public class CheckFile
     {
-        private readonly ILogger<ReadFileToBase64> _logger;
+        private readonly ILogger<CheckFile> _logger;
         private readonly TelemetryClient _telemetryClient;
 
-        public ReadFileToBase64(ILogger<ReadFileToBase64> logger, TelemetryClient telemetryClient)
+        public CheckFile(ILogger<CheckFile> logger, TelemetryClient telemetryClient)
         {
             _logger = logger;
             _telemetryClient = telemetryClient;
         }
 
-        [Function("ReadFileToBase64")]
+        [Function("CheckFile")]
         public async Task<IActionResult> Run([HttpTrigger(AuthorizationLevel.Function, "post")] HttpRequest req)
         {
             #region variables
@@ -28,7 +28,7 @@ namespace BlobFunctions
             string fullFileUri = data?.FullFileUri;
 
             string systemName = data?.SystemName;
-            if(!string.IsNullOrEmpty(systemName))
+            if (!string.IsNullOrEmpty(systemName))
             {
                 systemName = systemName.ToLower();
             }
@@ -37,12 +37,12 @@ namespace BlobFunctions
             string foldersInsideContainerAboveDateFolder = data?.FoldersInsideContainerAboveDateFolder;
             string referenceIdToSearch = data?.ReferenceIdToSearch;
             string fileName = data?.FileName;
-            string fileContent = string.Empty;
+            bool isExist = false;
             #endregion
 
             try
             {
-                _telemetryClient.TrackTrace("ReadFileToBase64", new Dictionary<string, string>
+                _telemetryClient.TrackTrace("CheckFile", new Dictionary<string, string>
                 {
                     { "ReferenceId", referenceId },
                     { "SourceSystem", data.SourceSystem.ToString() },
@@ -50,26 +50,26 @@ namespace BlobFunctions
                     { "InterfaceName", data.InterfaceName.ToString() },
                     { "ActivityCategory", data.ActivityCategory.ToString() },
                     { "Activity", data.Activity.ToString() },
-                    { "Stage", "ReadFileToBase64 start" }
+                    { "Stage", "CheckFile start" }
                 });
 
-                if(!string.IsNullOrEmpty(fullFileUri) )
+                if (!string.IsNullOrEmpty(fullFileUri))
                 {
                     BlobHelper blobHelper = new BlobHelper();
-                    fileContent = await blobHelper.ReadFileBase64(fullFileUri);
+                    isExist = await blobHelper.CheckFile(fullFileUri);
                 }
                 else if (!string.IsNullOrEmpty(filePathInContainer))
                 {
                     BlobHelper blobHelper = new BlobHelper();
-                    fileContent = await blobHelper.ReadFileBase64(systemName, filePathInContainer);
+                    isExist = await blobHelper.CheckFile(systemName, filePathInContainer);
                 }
                 else
                 {
-                    BlobHelper blobHelper = new BlobHelper(); 
-                    fileContent = await blobHelper.ReadFileBase64(systemName, foldersInsideContainerAboveDateFolder, referenceIdToSearch, fileName);
+                    BlobHelper blobHelper = new BlobHelper();
+                    isExist = await blobHelper.CheckFile(systemName, foldersInsideContainerAboveDateFolder, referenceIdToSearch, fileName);
                 }
 
-                _telemetryClient.TrackTrace("ReadFileToBase64", new Dictionary<string, string>
+                _telemetryClient.TrackTrace("CheckFile", new Dictionary<string, string>
                 {
                     { "ReferenceId", referenceId },
                     { "SourceSystem", data.SourceSystem.ToString() },
@@ -77,26 +77,24 @@ namespace BlobFunctions
                     { "InterfaceName", data.InterfaceName.ToString() },
                     { "ActivityCategory", data.ActivityCategory.ToString() },
                     { "Activity", data.Activity.ToString() },
-                    { "Stage", "ReadFileToBase64 complete" }
+                    { "Stage", "CheckFile complete" }
                 });
-                
-                if (string.IsNullOrEmpty(fileContent))
+
+                if (isExist)
                 {
                     var responseObj = new
                     {
-                        Message = "File not found. Please check FileName / InterfaceName / ReferenceIdToSearch",
-                        FileContent = fileContent,
+                        Message = "File is present"
                     };
-                    return new NotFoundObjectResult(responseObj);
+                    return new OkObjectResult(responseObj);
                 }
                 else
                 {
                     var responseObj = new
                     {
-                        Message = "File fetched successfully",
-                        FileContent = fileContent,
+                        Message = "File is not present"
                     };
-                    return new OkObjectResult(responseObj);
+                    return new NotFoundObjectResult(responseObj);
                 }
             }
             catch (Exception ex)
@@ -109,27 +107,14 @@ namespace BlobFunctions
                     { "InterfaceName", data.InterfaceName.ToString() },
                     { "ActivityCategory", data.ActivityCategory.ToString() },
                     { "Activity", data.Activity.ToString() },
-                    { "Stage", "ReadFileToBase64 Error"}
+                    { "Stage", "CheckFile Error"}
                 });
-
-                Object responseObj = null;
-                if (ex.Message.Contains("404"))
+                var responseObj = new
                 {
-                    responseObj = new
-                    {
-                        ErrorMessage = "File does not exists in given location"
-                    };
-                    return new NotFoundObjectResult(responseObj);
-                }
-                else
-                {
-                    responseObj = new
-                    {
-                        ErrorMessage = ex.Message,
-                        ErrorStackTrace = ex.StackTrace,
-                    };
-                    return new BadRequestObjectResult(responseObj);
-                }
+                    ErrorMessage = ex.Message,
+                    ErrorStackTrace = ex.StackTrace,
+                };
+                return new BadRequestObjectResult(responseObj);
             }
         }
     }

@@ -12,9 +12,10 @@ namespace BlobFunctions
         private readonly ILogger<ReadFileToByteArray> _logger;
         private readonly TelemetryClient _telemetryClient;
 
-        public ReadFileToByteArray(ILogger<ReadFileToByteArray> logger, TelemetryClient )
+        public ReadFileToByteArray(ILogger<ReadFileToByteArray> logger, TelemetryClient telemetryClient)
         {
             _logger = logger;
+            _telemetryClient = telemetryClient;
         }
 
         [Function("ReadFileToByteArray")]
@@ -110,12 +111,24 @@ namespace BlobFunctions
                     { "Activity", data.Activity.ToString() },
                     { "Stage", "ReadFileToByteArray Error"}
                 });
-                var responseObj = new
+                Object responseObj = null;
+                if (ex.Message.Contains("404"))
                 {
-                    ErrorMessage = ex.Message,
-                    ErrorStackTrace = ex.StackTrace,
-                };
-                return new BadRequestObjectResult(responseObj);
+                    responseObj = new
+                    {
+                        ErrorMessage = "File does not exists in given location"
+                    };
+                    return new NotFoundObjectResult(responseObj);
+                }
+                else
+                {
+                    responseObj = new
+                    {
+                        ErrorMessage = ex.Message,
+                        ErrorStackTrace = ex.StackTrace,
+                    };
+                    return new BadRequestObjectResult(responseObj);
+                }
             }
         }
     }

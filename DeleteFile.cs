@@ -3,8 +3,6 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Extensions.Logging;
-using static System.Runtime.InteropServices.JavaScript.JSType;
-using System.Security.Cryptography.Xml;
 using BlobFunctions.Helpers;
 
 namespace BlobFunctions
@@ -111,12 +109,24 @@ namespace BlobFunctions
                     { "Activity", data.Activity.ToString() },
                     { "Stage", "DeleteFile Error" }
                 });
-                var responseObj = new
+                Object responseObj = null;
+                if (ex.Message.Contains("404"))
                 {
-                    ErrorMessage = ex.Message,
-                    ErrorStackTrace = ex.StackTrace,
-                };
-                return new BadRequestObjectResult(responseObj);
+                    responseObj = new
+                    {
+                        ErrorMessage = "File does not exists in given location"
+                    };
+                    return new NotFoundObjectResult(responseObj);
+                }
+                else
+                {
+                    responseObj = new
+                    {
+                        ErrorMessage = ex.Message,
+                        ErrorStackTrace = ex.StackTrace,
+                    };
+                    return new BadRequestObjectResult(responseObj);
+                }
             }
         }
     }
